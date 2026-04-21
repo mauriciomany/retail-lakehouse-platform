@@ -1,0 +1,23 @@
+# MinIO runtime data
+minio/data/
+
+# Spark runtime / logs
+*.log
+logs/
+spark-warehouse/
+metastore_db/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Env / secrets
+.env
+.env.*
