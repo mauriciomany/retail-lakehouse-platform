@@ -1,0 +1,399 @@
+Visão geral do fluxo
+
+Vamos simular uma empresa de varejo que vende em:
+
+lojas físicas
+e-commerce
+
+E que precisa analisar:
+
+vendas
+estoque
+produtos
+lojas
+clientes
+
+O pipeline vai seguir a lógica clássica de arquitetura moderna:
+
+fontes operacionais → data lake → processamento Spark → lakehouse → SQL analytics → dashboards
+
+1. Fontes de dados simuladas
+O que vamos ter
+
+Vamos criar arquivos que representam sistemas de origem, por exemplo:
+
+sales_store.csv → vendas de loja física
+sales_ecommerce.json → pedidos do e-commerce
+inventory.csv → posição de estoque
+products.csv → cadastro de produtos
+stores.csv → cadastro de lojas
+customers.csv → cadastro de clientes
+O que isso representa
+
+Isso simula o que no mundo real viria de:
+
+ERP
+plataforma de e-commerce
+sistema de estoque/WMS
+cadastro mestre
+Resultado esperado
+
+Ter um conjunto de dados “brutos”, ainda não tratados, com cara de operação real.
+
+2. Ingestão no data lake
+O que vamos fazer
+
+Vamos pegar esses arquivos e colocá-los no MinIO, que vai funcionar como nosso data lake local.
+
+Exemplo de organização:
+
+s3://retail-lake/landing/store_sales/2026/04/21/
+s3://retail-lake/landing/ecommerce_orders/2026/04/21/
+s3://retail-lake/landing/inventory/2026/04/21/
+s3://retail-lake/landing/master/products/
+Objetivo
+
+Guardar os dados exatamente como chegaram.
+
+Aqui a regra é:
+
+não transformar demais
+não corrigir lógica de negócio
+preservar o original
+Resultado esperado
+
+Uma camada landing/raw com histórico de recebimento e rastreabilidade.
+
+Em termos de arquitetura, é a “zona de aterrissagem”.
+
+3. Camada Bronze
+O que vamos fazer
+
+O Spark vai ler os arquivos da landing e gravar tabelas Iceberg na camada bronze.
+
+Nessa etapa faremos o mínimo necessário:
+
+aplicar schema
+padronizar nomes de colunas
+adicionar colunas técnicas
+registrar data/hora de ingestão
+manter a origem do dado
+
+Exemplo de tabelas:
+
+bronze.store_sales
+bronze.ecommerce_orders
+bronze.inventory
+bronze.products
+bronze.stores
+bronze.customers
+Objetivo
+
+Transformar arquivo bruto em tabela confiável e rastreável, sem ainda aplicar regras pesadas de negócio.
+
+Resultado esperado
+
+Dados estruturados no lakehouse, ainda próximos da origem, mas já consultáveis e versionados.
+
+4. Camada Silver
+O que vamos fazer
+
+Aqui entra o tratamento real dos dados.
+
+Vamos usar Spark para:
+
+remover duplicidades
+corrigir tipos
+validar campos obrigatórios
+padronizar datas
+unificar loja física e e-commerce
+relacionar vendas com produtos, lojas e clientes
+tratar registros inválidos
+enriquecer dados
+
+Exemplos:
+
+silver.sales_items
+silver.orders
+silver.stock_position
+silver.dim_product
+silver.dim_store
+silver.dim_customer
+Objetivo
+
+Criar uma base integrada, limpa e consistente.
+
+Essa é a camada em que o dado deixa de ser “só recebido” e passa a ser “confiável para análise”.
+
+Resultado esperado
+
+Tabelas com qualidade suficiente para alimentar indicadores sem depender de múltiplos ajustes manuais depois.
+
+5. Camada Gold
+O que vamos fazer
+
+Na gold vamos montar tabelas prontas para consumo analítico.
+
+Aqui entram agregações, métricas e visão de negócio.
+
+Exemplos:
+
+gold.fact_sales_daily
+gold.sales_by_store_category_day
+gold.margin_by_channel_month
+gold.stockout_by_store_day
+gold.customer_kpis
+Objetivo
+
+Entregar dados já no formato ideal para BI e análise.
+
+A camada gold responde perguntas como:
+
+faturamento por dia
+ticket médio por loja
+top produtos
+margem por categoria
+ruptura de estoque
+comparação loja física x e-commerce
+Resultado esperado
+
+Um conjunto de tabelas analíticas prontas para dashboards e SQL de negócio.
+
+6. Lakehouse com Iceberg + Nessie
+O que vamos fazer
+
+As tabelas bronze, silver e gold não serão só arquivos soltos. Elas serão tabelas Iceberg, gerenciadas por Nessie.
+
+Papel do Iceberg
+
+O Iceberg traz recursos importantes:
+
+tabela analítica de verdade
+evolução de schema
+particionamento
+versionamento interno
+melhor governança sobre arquivos
+Papel do Nessie
+
+O Nessie funciona como catálogo/versionamento do lakehouse.
+
+Ele permite organizar referências e metadados das tabelas.
+
+Objetivo
+
+Fazer o armazenamento analítico ficar moderno e robusto, mais próximo do que o mercado usa hoje em lakehouse.
+
+Resultado esperado
+
+Tabelas gerenciadas, com melhor controle do que simples CSV ou Parquet largado em pasta.
+
+7. Consulta com Trino
+O que vamos fazer
+
+Depois que o Spark gravar as tabelas Iceberg, o Trino vai consultá-las.
+
+Exemplo de uso:
+
+listar schemas
+consultar a bronze
+consultar a silver
+consultar a gold
+fazer joins e agregações SQL
+Objetivo
+
+Separar a camada de processamento da camada de consumo analítico.
+
+Spark transforma.
+Trino consulta.
+
+Isso é bem realista em arquitetura de dados moderna.
+
+Resultado esperado
+
+Você poderá rodar SQL analítico diretamente no lakehouse sem depender do Spark para tudo.
+
+8. Visualização com Superset
+O que vamos fazer
+
+Vamos conectar o Superset ao Trino e criar datasets e dashboards.
+
+Exemplos de painéis:
+
+faturamento por mês
+vendas por canal
+top produtos
+ticket médio por loja
+estoque baixo
+margem por categoria
+comparativo loja física x e-commerce
+Objetivo
+
+Fechar o ciclo da arquitetura:
+do dado bruto até a decisão de negócio.
+
+Resultado esperado
+
+Um dashboard funcional em cima do seu lakehouse local.
+
+9. Fluxo operacional completo
+
+A pipeline, em linguagem simples, vai funcionar assim:
+
+Etapa A — gerar ou receber dados
+
+Criamos os arquivos simulando operação de varejo.
+
+Etapa B — depositar no data lake
+
+Esses arquivos sobem para a área landing no MinIO.
+
+Etapa C — Spark cria bronze
+
+O Spark lê os arquivos crus e transforma em tabelas Iceberg bronze.
+
+Etapa D — Spark cria silver
+
+O Spark limpa, deduplica, valida e integra os dados.
+
+Etapa E — Spark cria gold
+
+O Spark gera fatos, dimensões e agregados analíticos.
+
+Etapa F — Trino consulta
+
+O Trino expõe essas tabelas via SQL.
+
+Etapa G — Superset analisa
+
+O Superset consome o Trino e exibe dashboards.
+
+10. O que estamos demonstrando com esse projeto
+
+Esse fluxo mostra competências bem fortes.
+
+Arquitetura
+separação de camadas
+data lake + lakehouse
+engine de processamento separada da engine de consulta
+Engenharia de dados
+ingestão
+tratamento
+padronização
+quality rules
+transformação em múltiplas camadas
+Modelagem analítica
+fatos e dimensões
+KPIs de varejo
+tabelas gold orientadas a negócio
+Analytics
+SQL analítico
+datasets prontos para BI
+dashboards executivos
+11. Exemplo concreto do que entra e do que sai
+Entrada
+
+Um registro bruto de venda pode vir assim:
+
+{
+  "order_id": "EC12345",
+  "event_time": "2026-04-21 10:15:00",
+  "store_id": null,
+  "channel": "ECOMMERCE",
+  "customer_id": "C1001",
+  "sku": "SKU-001",
+  "quantity": 2,
+  "unit_price": 120.00,
+  "discount": 10.00
+}
+Bronze
+
+Ele vira uma tabela estruturada com colunas técnicas, por exemplo:
+
+source_system
+ingestion_timestamp
+file_name
+Silver
+
+Pode ser enriquecido com:
+
+nome do produto
+categoria
+cidade do cliente
+região
+valor líquido calculado
+Gold
+
+Pode virar parte de um agregado como:
+
+venda diária por categoria e canal
+ticket médio por região
+margem mensal por loja
+12. Resultado final esperado do projeto
+
+Ao fim do fluxo, você terá:
+
+Infraestrutura
+ambiente local completo de dados
+Armazenamento
+bucket no MinIO com landing e warehouse
+Lakehouse
+schemas bronze, silver, gold
+Tabelas
+dados crus, tratados e analíticos
+SQL
+consultas via Trino
+BI
+dashboards no Superset
+Narrativa de projeto
+
+Você poderá dizer que construiu uma:
+
+plataforma analítica de varejo omnichannel com ingestão em data lake S3-compatible, processamento distribuído em Spark, persistência em Iceberg com catálogo Nessie, consulta via Trino e consumo em BI no Superset.
+
+Isso tem cara total de projeto de mercado.
+
+13. Ordem prática que vamos seguir
+
+Eu sugiro esta sequência:
+
+Fase 1
+
+Criar estrutura do bucket e namespaces:
+
+landing
+bronze
+silver
+gold
+Fase 2
+
+Gerar dados fictícios de varejo
+
+Fase 3
+
+Subir dados para a landing
+
+Fase 4
+
+Criar bronze com Spark
+
+Fase 5
+
+Criar silver com Spark
+
+Fase 6
+
+Criar gold com Spark
+
+Fase 7
+
+Validar consultas no Trino
+
+Fase 8
+
+Conectar Superset e criar os primeiros dashboards
+
+14. Resumo em uma frase
+
+Vamos construir um pipeline em que dados brutos de varejo entram no data lake, são tratados pelo Spark, armazenados como tabelas lakehouse e consumidos por SQL e dashboards para análise de negócio.
+
+O próximo passo ideal é eu te passar a estrutura concreta do cenário de varejo, com quais tabelas vamos ter em bronze, silver e gold, antes de começar a criar os dados.

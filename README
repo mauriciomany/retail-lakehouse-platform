@@ -1,0 +1,133 @@
+# 🛒 Retail Lakehouse Data Platform
+
+Plataforma de dados ponta-a-ponta para varejo omnichannel, construída localmente utilizando arquitetura moderna baseada em Data Lake + Lakehouse.
+
+## 🚀 Objetivo
+
+Simular um cenário real de varejo e construir uma pipeline completa de dados, desde a ingestão até a análise, utilizando ferramentas modernas do ecossistema de dados.
+
+Este projeto demonstra na prática:
+
+- Ingestão de dados em Data Lake (S3-compatible)
+- Processamento distribuído com Apache Spark
+- Armazenamento analítico em formato Iceberg (Lakehouse)
+- Catálogo e versionamento com Nessie
+- Consulta SQL com Trino
+- Visualização de dados com Superset
+
+---
+
+## 🏗️ Arquitetura
+
+
+Sources → Data Lake (MinIO) → Spark → Iceberg + Nessie → Trino → Superset
+
+
+### Componentes
+
+| Camada        | Tecnologia        |
+|--------------|------------------|
+| Data Lake     | MinIO            |
+| Processamento | Apache Spark     |
+| Lakehouse     | Apache Iceberg   |
+| Catálogo      | Project Nessie   |
+| Query Engine  | Trino            |
+| BI            | Superset         |
+
+---
+
+## 📊 Caso de Uso
+
+Simulação de um ambiente de varejo omnichannel com dados de:
+
+- Vendas (loja física e e-commerce)
+- Estoque
+- Produtos
+- Clientes
+- Lojas
+
+---
+
+## 🔄 Pipeline de Dados
+
+### 1. Ingestão (Landing)
+Dados brutos são carregados no Data Lake (MinIO):
+
+
+/landing/store_sales/
+/landing/ecommerce/
+/landing/inventory/
+
+
+### 2. Bronze
+- Estruturação inicial
+- Aplicação de schema
+- Inclusão de metadados
+
+### 3. Silver
+- Limpeza e tratamento
+- Deduplicação
+- Enriquecimento com dimensões
+
+### 4. Gold
+- Agregações analíticas
+- KPIs de negócio
+- Tabelas prontas para BI
+
+---
+
+## 📈 KPIs Implementados
+
+- Faturamento total
+- Ticket médio
+- Margem por produto/categoria
+- Vendas por canal
+- Ruptura de estoque
+- Performance por loja/região
+
+---
+
+## ⚙️ Como executar
+
+### Pré-requisitos
+- Docker
+- Docker Compose
+
+### Subir ambiente
+
+```bash
+docker compose up -d
+Serviços disponíveis
+Serviço	URL
+MinIO	http://localhost:19001
+
+Nessie	http://localhost:19120
+
+Trino	http://localhost:18080
+
+Superset	http://localhost:18088
+🧪 Próximos passos (roadmap)
+ Gerar dados fictícios de varejo
+ Criar tabelas Bronze
+ Criar camada Silver
+ Criar camada Gold
+ Conectar Superset ao Trino
+ Criar dashboards
+ Automatizar pipeline (Airflow)
+🧠 Aprendizados
+
+Este projeto demonstra:
+
+Arquitetura moderna de dados
+Design de pipelines escaláveis
+Separação entre processamento e consumo
+Uso de Lakehouse em ambiente local
+Integração entre múltiplas ferramentas
+📌 Observações
+
+Este projeto é um laboratório técnico e não possui dados reais.
+
+👨‍💻 Autor
+
+Maurício de Castro
+Data Engineer | BI | Arquitetura de Dados

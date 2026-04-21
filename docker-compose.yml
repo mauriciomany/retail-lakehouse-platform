@@ -1,0 +1,121 @@
+version: "3.9"
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: retail-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123456
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - ./minio/data:/data
+    networks:
+      - retail-net
+
+  minio-mc:
+    image: minio/mc:latest
+    container_name: retail-minio-mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      /usr/bin/mc alias set retail http://minio:9000 admin admin123456;
+      /usr/bin/mc mb retail/retail-lake --ignore-existing;
+      /usr/bin/mc anonymous set public retail/retail-lake;
+      tail -f /dev/null
+      "
+    networks:
+      - retail-net
+
+  nessie:
+    image: ghcr.io/projectnessie/nessie:0.107.4
+    container_name: retail-nessie
+    environment:
+      QUARKUS_HTTP_PORT: 19120
+    ports:
+      - "19120:19120"
+    networks:
+      - retail-net
+
+  spark:
+    image: tabulario/spark-iceberg:latest
+    container_name: retail-spark
+    depends_on:
+      - minio
+      - nessie
+    environment:
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: admin123456
+      AWS_REGION: us-east-1
+    ports:
+      - "18081:8080"
+      - "14040:4040"
+    volumes:
+      - ./spark/apps:/home/iceberg/spark/apps
+      - ./spark/conf:/home/iceberg/spark/conf
+    command: >
+      /bin/bash -c "
+      spark-sql
+      --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.0,org.projectnessie.nessie-integrations:nessie-spark-extensions-3.5_2.12:0.107.4,software.amazon.awssdk:bundle:2.25.53,software.amazon.awssdk:url-connection-client:2.25.53
+      --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions
+      --conf spark.sql.catalog.nessie=org.apache.iceberg.spark.SparkCatalog
+      --conf spark.sql.catalog.nessie.catalog-impl=org.apache.iceberg.nessie.NessieCatalog
+      --conf spark.sql.catalog.nessie.uri=http://nessie:19120/api/v2
+      --conf spark.sql.catalog.nessie.ref=main
+      --conf spark.sql.catalog.nessie.authentication.type=NONE
+      --conf spark.sql.catalog.nessie.warehouse=s3://retail-lake/warehouse
+      --conf spark.sql.catalog.nessie.s3.endpoint=http://minio:9000
+      --conf spark.sql.catalog.nessie.s3.path-style-access=true
+      --conf spark.sql.catalog.nessie.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
+      --conf spark.hadoop.fs.s3a.access.key=admin
+      --conf spark.hadoop.fs.s3a.secret.key=admin123456
+      --conf spark.hadoop.fs.s3a.path.style.access=true
+      --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+      "
+    networks:
+      - retail-net
+    tty: true
+    stdin_open: true
+
+  trino:
+    image: trinodb/trino:480
+    container_name: retail-trino
+    depends_on:
+      - minio
+      - nessie
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./trino/catalog:/etc/trino/catalog
+    networks:
+      - retail-net
+
+  superset:
+    image: apache/superset:latest
+    container_name: retail-superset
+    depends_on:
+      - trino
+    ports:
+      - "18088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: retail_superset_secret_key_2026
+    command: >
+      /bin/sh -c "
+      pip install trino &&
+      superset db upgrade &&
+      superset fab create-admin --username admin --firstname Retail --lastname Admin --email admin@local --password admin &&
+      superset init &&
+      /usr/bin/run-server.sh
+      "
+    networks:
+      - retail-net
+      
+networks:
+  retail-net:
+    driver: bridge
